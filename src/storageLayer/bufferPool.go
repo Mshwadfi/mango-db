@@ -160,3 +160,29 @@ func (bm *BufferManager) FlushAll() error {
 
 	return nil
 }
+
+func (bm *BufferManager) NewPage() (uint16, *Page, error) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+
+	// if buffer pool is full, evict a page
+	if bm.lruList.Len() >= int(bm.capacity) {
+		if err := bm.evictPage(); err != nil {
+			return 0, nil, err
+		}
+	}
+
+	// create the page on disk first
+	pageId, err := bm.dm.AllocatePage()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	// cache the page in buffer pool
+	page, err := bm.cachePage(pageId)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return pageId, page, nil
+}
