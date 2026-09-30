@@ -7,8 +7,9 @@ import (
 
 const (
 	PageSize      = 4096
-	HeaderSize    = 6
+	HeaderSize    = 8
 	SlotEntrySize = 5
+	NoNextPageId  = 0xFFFF
 )
 
 var (
@@ -21,6 +22,7 @@ type PageHeader struct {
 	NumberOfSlots  uint16
 	FreeSpaceStart uint16
 	FreeSpaceEnd   uint16
+	NextPageId     uint16
 }
 
 type SlotEntry struct {
@@ -33,8 +35,8 @@ type SlotEntry struct {
 //  (other components do not know about offset, slot number)
 
 type RecordID struct {
-	PageID uint16
-	Slot   uint16
+	PageId     uint16
+	SlotNumber uint16
 }
 
 type Page struct {
@@ -48,11 +50,20 @@ func NewPage() *Page {
 	p.setNumberOfSlots(0)
 	p.setFreeSpaceStart(HeaderSize)
 	p.setFreeSpaceEnd(PageSize)
+	p.SetNextPageId(NoNextPageId)
 	return p
 }
 
+func (p *Page) GetNextPageId() uint16 {
+	return binary.LittleEndian.Uint16(p.Data[6:8])
+}
+
+func (p *Page) SetNextPageId(nextPageId uint16) {
+	binary.LittleEndian.PutUint16(p.Data[6:8], nextPageId)
+}
+
 // --------------------- header methods (private) -----------------------//
-func (p *Page) numberOfSlots() int {
+func (p *Page) NumberOfSlots() int {
 	return int(binary.LittleEndian.Uint16(p.Data[0:2]))
 }
 
@@ -104,7 +115,7 @@ func (p *Page) setSlot(slotNumber int, offset int, length int, alive bool) {
 // --------------------- page main methods (public) ------------------------//
 func (p *Page) Insert(record []byte) (int, error) {
 	recordLength := len(record)
-	slotCount := p.numberOfSlots()
+	slotCount := p.NumberOfSlots()
 
 	availableSpace := p.freeSpaceEnd() - p.freeSpaceStart()
 	neededSpace := SlotEntrySize + recordLength
@@ -132,7 +143,7 @@ func (p *Page) Insert(record []byte) (int, error) {
 }
 
 func (p *Page) Get(slotNumber int) ([]byte, error) {
-	if slotNumber < 0 || slotNumber >= p.numberOfSlots() {
+	if slotNumber < 0 || slotNumber >= p.NumberOfSlots() {
 		return nil, ErrSlotNotFound
 	}
 
@@ -146,7 +157,7 @@ func (p *Page) Get(slotNumber int) ([]byte, error) {
 }
 
 func (p *Page) Delete(slotNumber int) error {
-	if slotNumber < 0 || slotNumber >= p.numberOfSlots() {
+	if slotNumber < 0 || slotNumber >= p.NumberOfSlots() {
 		return ErrSlotNotFound
 	}
 	offset, length, alive := p.getSlot(slotNumber)
@@ -158,7 +169,7 @@ func (p *Page) Delete(slotNumber int) error {
 }
 
 func (p *Page) Update(slotNumber int, record []byte) error {
-	if slotNumber < 0 || slotNumber >= p.numberOfSlots() {
+	if slotNumber < 0 || slotNumber >= p.NumberOfSlots() {
 		return ErrSlotNotFound
 	}
 
@@ -194,7 +205,7 @@ func (p *Page) compact() {
 
 	writePos := PageSize
 
-	for slot := 0; slot < p.numberOfSlots(); slot++ {
+	for slot := 0; slot < p.NumberOfSlots(); slot++ {
 
 		offset, length, alive := p.getSlot(slot)
 		if !alive {
