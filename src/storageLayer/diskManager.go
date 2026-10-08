@@ -6,13 +6,19 @@ import (
 	"sync"
 )
 
+var ErrPageOutOfRange = errors.New("page ID out of range")
+
 type DiskManager struct {
 	file          *os.File
 	mu            sync.Mutex
 	numberOfPages uint16
 }
 
-var ErrPageOutOfRange = errors.New("page ID out of range")
+func (dm *DiskManager) GetNumberOfPages() uint16 {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	return dm.numberOfPages
+}
 
 func OpenDiskManager(path string) (*DiskManager, error) {
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
@@ -43,6 +49,11 @@ func (dm *DiskManager) AllocatePage() (uint16, error) {
 	_, err := dm.file.WriteAt(page.Data, offset)
 
 	if err != nil {
+		return 0, err
+	}
+
+	// use sync so that the page is written to disk immediatly, and not cached in OS buffer
+	if err := dm.file.Sync(); err != nil {
 		return 0, err
 	}
 

@@ -24,6 +24,38 @@ func NewTableHeap(bm *storageLayer.BufferManager) (*TableHeap, error) {
 	}, nil
 }
 
+func (th *TableHeap) FirstPageId() uint16 {
+	return th.firstPageId
+}
+
+func (th *TableHeap) LastPageId() uint16 {
+	return th.lastPageId
+}
+
+func OpenTableHeap(bm *storageLayer.BufferManager, firstPageId uint16) (*TableHeap, error) {
+	lastPageId := firstPageId
+	for {
+		page, err := bm.FetchPage(lastPageId)
+		if err != nil {
+			return nil, err
+		}
+
+		nextPageId := page.GetNextPageId()
+		bm.UnPinPage(lastPageId, false)
+
+		if nextPageId == storageLayer.NoNextPageId {
+			break
+		}
+		lastPageId = nextPageId
+	}
+
+	return &TableHeap{
+		bm:          bm,
+		firstPageId: firstPageId,
+		lastPageId:  lastPageId,
+	}, nil
+}
+
 func (th *TableHeap) Insert(record []byte) (storageLayer.RecordID, error) {
 	page, err := th.bm.FetchPage(th.lastPageId)
 	if err != nil {

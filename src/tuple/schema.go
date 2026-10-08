@@ -50,11 +50,11 @@ func (s *Schema) GetColumnIndex(name string) (int, error) {
 	return -1, ErrColumnNotFound
 }
 
-func (s *Schema) GetColumn(idx int) (*Column, error) {
+func (s *Schema) GetColumn(idx int) (Column, error) {
 	if idx < 0 || idx >= len(s.Columns) {
-		return nil, ErrColumnNotFound
+		return Column{}, ErrColumnNotFound
 	}
-	return &s.Columns[idx], nil
+	return s.Columns[idx], nil
 }
 
 func (s *Schema) GetNumberOfColumns() int {
