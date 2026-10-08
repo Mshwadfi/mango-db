@@ -19,6 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer bm.FlushAll()
 
 	cat, err := catalog.OpenCatalog(bm, dm)
 	if err != nil {
